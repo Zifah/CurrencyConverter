@@ -7,6 +7,8 @@ namespace CurrencyConverter.Models
 {
     public class HistoricalRate
     {
+        public string SourceCurrency { get; set; }
+        public string DestinationCurrency { get; set; }
         public decimal Rate { get; set; }
         public DateTime Date { get; set; }
     }

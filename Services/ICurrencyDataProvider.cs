@@ -27,7 +27,7 @@ namespace CurrencyConverter.Services
         /// <param name="destinationCurrency">The destination currency</param>
         /// <returns>The result of currency conversion</returns>
         /// <exception cref="ArgumentOutOfRangeException">Will throw if either <paramref name="sourceCurrency"/> or <paramref name="destinationCurrency"/> is not found</exception>
-        public decimal Convert(decimal amount, string sourceCurrency, string destinationCurrency);
+        Task<decimal> Convert(decimal amount, string sourceCurrency, string destinationCurrency);
 
         /// <summary>
         /// Returns the conversion rate to convert a value from <paramref name="sourceCurrency"/> to <paramref name="destinationCurrency"/>
@@ -35,7 +35,7 @@ namespace CurrencyConverter.Services
         /// <param name="sourceCurrency">The currency of the known value</param>
         /// <param name="destinationCurrency">The currency of the value to calculate using the returned rate</param>
         /// <returns>Rate: To convert a value in <paramref name="sourceCurrency"/> to <paramref name="destinationCurrency"/>, multiply it by this values</returns>
-        public decimal GetConversionRate(string sourceCurrency, string destinationCurrency);
+        Task<decimal> GetConversionRate(string sourceCurrency, string destinationCurrency);
 
         /// <summary>
         /// Returns a conversation rate from over a range of dates up from a past date up to the present date
@@ -45,6 +45,6 @@ namespace CurrencyConverter.Services
         /// <param name="sourceCurrency">The currency of the known value</param>
         /// <param name="destinationCurrency">The currency of the target value</param>
         /// <returns>A list of <see cref="HistoricalRate"/> objects with data for the requested duration</returns>
-        public IList<HistoricalRate> GetHistoricalConversionRates(DateTime fromDate, DateTime toDate, string sourceCurrency, string destinationCurrency);
+        Task<IEnumerable<HistoricalRate>> GetHistoricalConversionRates(DateTime fromDate, DateTime toDate, string sourceCurrency, string destinationCurrency);
     }
 }
