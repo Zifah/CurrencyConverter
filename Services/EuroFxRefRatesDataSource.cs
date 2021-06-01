@@ -48,16 +48,16 @@ namespace CurrencyConverter.Services
         // https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.zip?104acdea95c84c086c74747ee81aa7e4
         public async Task<IEnumerable<HistoricalRate>> GetAllRatesAsync()
         {
-            return await GetRatesAsync(config.HistoricalRatesCsvPath);
+            return await GetRatesAsync(true);
         }
 
         // https://www.ecb.europa.eu/stats/eurofxref/eurofxref.zip?104acdea95c84c086c74747ee81aa7e4
         public async Task<IEnumerable<HistoricalRate>> GetCurrentRatesAsync()
         {
-            return await GetRatesAsync(config.LatestRatesCsvPath);
+            return await GetRatesAsync(false);
         }
 
-        private async Task<IEnumerable<HistoricalRate>> GetRatesAsync(string ratesFileUri)
+        private async Task<IEnumerable<HistoricalRate>> GetRatesAsync(bool getHistorical)
         {
             string ratesFileUri = getHistorical ? config.HistoricalRatesCsvUri : config.LatestRatesCsvUri;
             // Get the zipped file as a stream
@@ -68,7 +68,8 @@ namespace CurrencyConverter.Services
 
             // Decompress the zip file
             string unzipDirectory = fileOperations.UnzipArchive(zipFilePath);
-            var ratesFilePath = Path.Combine(unzipDirectory, config.RatesFilePathInZip);
+            string csvFilePathInZip = getHistorical ? config.HistoricalRatesFilePathInZip : config.LatestRatesFilePathInZip;
+            var ratesFilePath = Path.Combine(unzipDirectory, csvFilePathInZip);
 
             // Parse it into a list
             using var csvFileStream = new StreamReader(ratesFilePath);
