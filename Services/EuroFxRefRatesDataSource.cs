@@ -28,18 +28,21 @@ namespace CurrencyConverter.Services
         private readonly IDateProvider dateProvider;
 
         public EuroFxRefRatesDataSource(
-            HttpClient httpClient,
-            IFileOperations fileOperations, EuroFxCsvHelper csvHelper,
+            IHttpClientFactory httpClientFactory,
+            IFileOperations fileOperations,
+            EuroFxCsvHelper csvHelper,
             IOptions<EuroFxRefOptions> config,
             ILogger<EuroFxRefRatesDataSource> logger,
             IDateProvider dateProvider)
         {
             // Inject that HttpClientFactory in here. That will be used to create the HTTP client
-            this.httpClient = Requires.NotNull(httpClient, nameof(httpClient));
+            var httpFactory = Requires.NotNull(httpClientFactory, nameof(httpClientFactory));
+            this.httpClient = httpFactory.CreateClient(ApplicationConstants.EuroFxRefNamedClientName);
             this.csvHelper = Requires.NotNull(csvHelper, nameof(csvHelper));
             this.fileOperations = Requires.NotNull(fileOperations, nameof(FileOperations));
             this.config = Requires.NotNull(config.Value, nameof(config));
             this.logger = Requires.NotNull(logger, nameof(logger));
+            this.dateProvider = Requires.NotNull(dateProvider, nameof(dateProvider));
         }
 
         // https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.zip?104acdea95c84c086c74747ee81aa7e4
@@ -56,11 +59,12 @@ namespace CurrencyConverter.Services
 
         private async Task<IEnumerable<HistoricalRate>> GetRatesAsync(string ratesFileUri)
         {
+            string ratesFileUri = getHistorical ? config.HistoricalRatesCsvUri : config.LatestRatesCsvUri;
             // Get the zipped file as a stream
             using var zipFileStream = await GetRatesZipFileAsync(ratesFileUri);
 
             // Save the zip file
-            var zipFilePath = fileOperations.SaveStreamToTempFile(zipFileStream, $"{new Guid()}.zip");
+            var zipFilePath = fileOperations.SaveStreamToTempFile(zipFileStream, $"{Guid.NewGuid()}.zip");
 
             // Decompress the zip file
             string unzipDirectory = fileOperations.UnzipArchive(zipFilePath);
