@@ -1,8 +1,16 @@
-﻿using CurrencyConverter.Models;
+﻿using CurrencyConverter.Configuration;
+using CurrencyConverter.Helpers;
+using CurrencyConverter.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Threading.Tasks;
+using Validation;
 
 namespace CurrencyConverter.Services
 {
@@ -11,32 +19,106 @@ namespace CurrencyConverter.Services
     /// </summary>
     public class EuroFxRefRatesDataSource : IThirdPartyRatesDataSource
     {
-        public EuroFxRefRatesDataSource()
+        public string BaseCurrency { get; } = "EUR";
+        private readonly HttpClient httpClient;
+        private readonly EuroFxCsvHelper csvHelper;
+        private readonly IFileOperations fileOperations;
+        private readonly EuroFxRefOptions config;
+        private readonly ILogger<EuroFxRefRatesDataSource> logger;
+        private readonly IDateProvider dateProvider;
+
+        public EuroFxRefRatesDataSource(
+            HttpClient httpClient,
+            IFileOperations fileOperations, EuroFxCsvHelper csvHelper,
+            IOptions<EuroFxRefOptions> config,
+            ILogger<EuroFxRefRatesDataSource> logger,
+            IDateProvider dateProvider)
         {
             // Inject that HttpClientFactory in here. That will be used to create the HTTP client
+            this.httpClient = Requires.NotNull(httpClient, nameof(httpClient));
+            this.csvHelper = Requires.NotNull(csvHelper, nameof(csvHelper));
+            this.fileOperations = Requires.NotNull(fileOperations, nameof(FileOperations));
+            this.config = Requires.NotNull(config.Value, nameof(config));
+            this.logger = Requires.NotNull(logger, nameof(logger));
         }
 
-        public Task<IEnumerable<HistoricalRate>> GetAllRatesAsync()
+        // https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.zip?104acdea95c84c086c74747ee81aa7e4
+        public async Task<IEnumerable<HistoricalRate>> GetAllRatesAsync()
         {
-            // Get the CSV file
+            return await GetRatesAsync(config.HistoricalRatesCsvPath);
+        }
+
+        // https://www.ecb.europa.eu/stats/eurofxref/eurofxref.zip?104acdea95c84c086c74747ee81aa7e4
+        public async Task<IEnumerable<HistoricalRate>> GetCurrentRatesAsync()
+        {
+            return await GetRatesAsync(config.LatestRatesCsvPath);
+        }
+
+        private async Task<IEnumerable<HistoricalRate>> GetRatesAsync(string ratesFileUri)
+        {
+            // Get the zipped file as a stream
+            using var zipFileStream = await GetRatesZipFileAsync(ratesFileUri);
+
+            // Save the zip file
+            var zipFilePath = fileOperations.SaveStreamToTempFile(zipFileStream, $"{new Guid()}.zip");
+
+            // Decompress the zip file
+            string unzipDirectory = fileOperations.UnzipArchive(zipFilePath);
+            var ratesFilePath = Path.Combine(unzipDirectory, config.RatesFilePathInZip);
+
             // Parse it into a list
-            // Return the list
-            throw new NotImplementedException();
+            using var csvFileStream = new StreamReader(ratesFilePath);
+            IDictionary<DateTime, IDictionary<string, string>> ratesByDate = csvHelper.ParseText(csvFileStream);
+            var result = new ConcurrentBag<HistoricalRate>();
+
+            Parallel.ForEach(ratesByDate, kvp =>
+            {
+                var ratesDate = kvp.Key;
+                foreach (KeyValuePair<string, string> rateKvp in kvp.Value)
+                {
+                    string destinationCurrency = rateKvp.Key;
+                    string rateString = rateKvp.Value;
+                    if (decimal.TryParse(rateString, out decimal rate))
+                    {
+                        result.Add(new HistoricalRate
+                        {
+                            Date = ratesDate,
+                            SourceCurrency = BaseCurrency,
+                            DestinationCurrency = rateKvp.Key,
+                            Rate = rate
+                        });
+                    }
+                    else
+                    {
+                        logger.LogInformation($"{BaseCurrency} to {destinationCurrency} rates for {ratesDate} is not valid. Value {rateString} is not a valid decimal");
+                    }
+                }
+            });
+
+            return result;
         }
 
-        public Task<IEnumerable<HistoricalRate>> GetCurrentRatesAsync()
+        /// <inheritdoc/>
+        public async Task<IEnumerable<HistoricalRate>> GetRatesAfterAsync(DateTime? exclusiveMinimumBoundDate)
         {
-            // Get the PDF file
-            // Extract today's rates data from the file
-            // Return the data
-            throw new NotImplementedException();
+            DateTime lastBusinessDay = dateProvider.GetLastBusinessDayDate();
+
+            Boolean doWeHaveSecondToCurrentData = exclusiveMinimumBoundDate == lastBusinessDay;
+
+            if(doWeHaveSecondToCurrentData)
+            {
+                return await GetCurrentRatesAsync();
+            }
+
+            var allRates = await GetAllRatesAsync();
+            return exclusiveMinimumBoundDate.HasValue ? allRates.Where(r => r.Date > exclusiveMinimumBoundDate) : allRates;
         }
 
-        public Task<IEnumerable<HistoricalRate>> GetRatesAfterAsync(DateTime? exclusiveMinimumBoundDate)
+        private async Task<Stream> GetRatesZipFileAsync(string path)
         {
-            // Fetch the whole file if the cache is empty or does not have the last working day's data and use this to populate the cache
-            // If last update day was yesterday, fetch today's data through the PDF
-            throw new NotImplementedException();
+            var response = await httpClient.GetAsync(path);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadAsStreamAsync();
         }
     }
 }

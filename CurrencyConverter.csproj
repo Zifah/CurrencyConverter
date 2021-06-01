@@ -5,6 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="CsvHelper" Version="27.1.0" />
     <PackageReference Include="Validation" Version="2.4.22" />
   </ItemGroup>
 

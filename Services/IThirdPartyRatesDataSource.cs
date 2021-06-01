@@ -10,6 +10,8 @@ namespace CurrencyConverter.Services
     /// </summary>
     public interface IThirdPartyRatesDataSource
     {
+        string BaseCurrency { get; }
+
         /// <summary>
         /// Gets the most up-to-date exchange rates i.e. exchange rates for the last/current business day
         /// </summary>

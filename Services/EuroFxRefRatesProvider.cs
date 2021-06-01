@@ -75,8 +75,7 @@ namespace CurrencyConverter.Services
         {
             await semaphoreLocker.LockAsync(async () =>
             {
-                DateTime? newestRatesDate = ratesDataStore.LatestRatesDate;
-                IEnumerable<HistoricalRate> latestRates = await ratesDataSource.GetRatesAfterAsync(newestRatesDate);
+                IEnumerable<HistoricalRate> latestRates = await ratesDataSource.GetRatesAfterAsync(ratesDataStore.LatestRatesDate);
                 ratesDataStore.SaveRates(latestRates);
             });
         }

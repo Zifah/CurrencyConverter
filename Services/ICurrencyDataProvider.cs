@@ -11,13 +11,13 @@ namespace CurrencyConverter.Services
     /// </summary>
     public interface ICurrencyDataProvider
     {
-        public string BaseCurrency { get; }
+        string BaseCurrency { get; }
 
         /// <summary>
         /// Polls the primary source of currency information and brings local conversion rates store up-to-date
         /// </summary>
         /// <returns></returns>
-        public Task RefreshConversionRatesAsync();
+        Task RefreshConversionRatesAsync();
 
         /// <summary>
         /// Convert a value from one currency to another

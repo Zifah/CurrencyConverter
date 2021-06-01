@@ -1,3 +1,5 @@
+using CurrencyConverter.Configuration;
+using CurrencyConverter.Helpers;
 using CurrencyConverter.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -30,6 +32,13 @@ namespace CurrencyConverter
             services.AddSingleton<IRatesDataStore, InMemoryDictionaryRatesDataStore>();
             services.AddScoped<IThirdPartyRatesDataSource, EuroFxRefRatesDataSource>();
             services.AddScoped<ICurrencyDataProvider, EuroFxRefRatesProvider>();
+            services.AddScoped<IFileOperations, FileOperations>();
+            services.AddScoped<IDateProvider>((serviceProvider) => new DateProvider(DateTime.Today));
+            services.AddHttpClient<EuroFxRefRatesDataSource>(c =>
+            {
+                c.BaseAddress = new Uri("https://www.ecb.europa.eu");
+            });
+            services.Configure<EuroFxRefOptions>(Configuration.GetSection("EuroFxRef"));
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
