@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Validation;
 
 namespace CurrencyConverter.Services
 {
@@ -22,25 +23,8 @@ namespace CurrencyConverter.Services
         }
 
         /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="sourceCurrency"></param>
-        /// <param name="destinationCurrency"></param>
-        /// <returns></returns>
-        /// <exception cref="IndexOutOfRangeException">Indicates that there is no data in the store</exception>
-        public HistoricalRate GetConversionRate(string sourceCurrency, string destinationCurrency)
-        {
-            if (!LatestRatesDate.HasValue)
-            {
-                throw new IndexOutOfRangeException();
-            }
-
-            return GetConversionRate(sourceCurrency, destinationCurrency, LatestRatesDate.Value);
-        }
-
-        /// <summary>
-        /// Will return the exchange rate to convert from <paramref name="sourceCurrency"/> and <paramref name="destinationCurrency"/> as at <paramref name="date"/>
-        /// Will return null if no exchange rate is found between these currencies for the specified date
+        /// <para>Will return the exchange rate to convert from <paramref name="sourceCurrency"/> and <paramref name="destinationCurrency"/> as at <paramref name="date"/></para>
+        /// <para>Will return null if no exchange rate is found between these currencies for the specified date</para>
         /// </summary>
         /// <param name="sourceCurrency"></param>
         /// <param name="destinationCurrency"></param>
@@ -81,7 +65,7 @@ namespace CurrencyConverter.Services
             Parallel.For(0, exclusiveUpperIndex, (int daysToAdd) =>
             {
                 var currentDate = fromDate.AddDays(daysToAdd);
-                result.TryAdd(currentDate, GetConversionRate(sourceCurrency, destinationCurrency)?.Rate);
+                result.TryAdd(currentDate, GetConversionRate(sourceCurrency, destinationCurrency, currentDate)?.Rate);
             });
 
             return result;

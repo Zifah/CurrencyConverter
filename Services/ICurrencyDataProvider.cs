@@ -25,9 +25,10 @@ namespace CurrencyConverter.Services
         /// <param name="amount">The value (in source currency) to be converted</param>
         /// <param name="sourceCurrency">The source currency</param>
         /// <param name="destinationCurrency">The destination currency</param>
+        /// <param name="date">An optional date, as at which conversion rates are to be used</param>
         /// <returns>The result of currency conversion</returns>
         /// <exception cref="ArgumentOutOfRangeException">Will throw if either <paramref name="sourceCurrency"/> or <paramref name="destinationCurrency"/> is not found</exception>
-        Task<decimal> Convert(decimal amount, string sourceCurrency, string destinationCurrency);
+        Task<ConvertResult> Convert(decimal amount, string sourceCurrency, string destinationCurrency, DateTime? date);
 
         /// <summary>
         /// Returns the conversion rate to convert a value from <paramref name="sourceCurrency"/> to <paramref name="destinationCurrency"/>

@@ -1,4 +1,5 @@
-﻿using CurrencyConverter.Helpers;
+﻿using CurrencyConverter.Exceptions;
+using CurrencyConverter.Helpers;
 using CurrencyConverter.Models;
 using System;
 using System.Collections.Generic;
@@ -14,32 +15,71 @@ namespace CurrencyConverter.Services
     /// </summary>
     public class EuroFxRefRatesProvider : ICurrencyDataProvider
     {
-        public string BaseCurrency { get; } = "EUR";
+        public string BaseCurrency { get; }
         private readonly IRatesDataStore ratesDataStore;
         private readonly IThirdPartyRatesDataSource ratesDataSource;
+        private readonly IDateProvider dateProvider;
+        private readonly DateTime currentBusinessDay;
         private static SemaphoreLocker semaphoreLocker = new SemaphoreLocker();
 
-        public EuroFxRefRatesProvider(IRatesDataStore ratesDataStore, IThirdPartyRatesDataSource ratesDataSource)
+        public EuroFxRefRatesProvider(
+            IRatesDataStore ratesDataStore, 
+            IThirdPartyRatesDataSource ratesDataSource,
+            IDateProvider dateProvider)
         {
             this.ratesDataStore = Requires.NotNull(ratesDataStore, nameof(ratesDataStore));
             this.ratesDataSource = Requires.NotNull(ratesDataSource, nameof(ratesDataSource));
+            this.dateProvider = dateProvider;
+            this.currentBusinessDay = dateProvider.GetCurrentBusinessDayDate();
+            BaseCurrency = Requires.NotNull(ratesDataSource.BaseCurrency, nameof(ratesDataSource.BaseCurrency));
         }
 
         /// <inheritdoc/>
-        public async Task<decimal> Convert(decimal amount, string sourceCurrency, string destinationCurrency)
+        public async Task<ConvertResult> Convert(decimal amount, string sourceCurrency, string destinationCurrency, DateTime? date)
         {
-            // TODO: Create a default implementation of this method in the interface using the new C# 8.0 feature
-            decimal rate = await GetConversionRate(sourceCurrency, destinationCurrency);
-            return amount * rate;
+            decimal rate;
+            if (date.HasValue)
+            {
+                HistoricalRate rateObj = (await GetHistoricalConversionRates(date.Value, date.Value, sourceCurrency, destinationCurrency)).SingleOrDefault();
+
+                if (rateObj == null)
+                {
+                    throw new RateNotFoundException(sourceCurrency, destinationCurrency);
+                }
+
+                rate = rateObj.Rate;
+            }
+            else
+            {
+                rate = await GetConversionRate(sourceCurrency, destinationCurrency);
+            }
+
+            return new ConvertResult
+            {
+                Result = amount * rate,
+                RateUsed = rate,
+                RateDate = date.HasValue ? dateProvider.GetCurrentBusinessDayDate(date.Value) : currentBusinessDay
+            };
         }
 
         /// <inheritdoc/>
         public async Task<decimal> GetConversionRate(string sourceCurrency, string destinationCurrency)
         {
             await EnsureRatesUpToDateAsync();
-            HistoricalRate baseToSourceRate = ratesDataStore.GetConversionRate(BaseCurrency, sourceCurrency);
-            HistoricalRate baseToDestinationRate = ratesDataStore.GetConversionRate(BaseCurrency, destinationCurrency);
-            return GetConversationRate(baseToDestinationRate.Rate, baseToSourceRate.Rate);
+            HistoricalRate baseToSourceRate = ratesDataStore.GetConversionRate(BaseCurrency, sourceCurrency, currentBusinessDay);
+
+            if (baseToSourceRate == null)
+            {
+                throw new RateNotFoundException(sourceCurrency, destinationCurrency);
+            }
+
+            HistoricalRate baseToDestinationRate = ratesDataStore.GetConversionRate(BaseCurrency, destinationCurrency, currentBusinessDay);
+            if (baseToDestinationRate == null)
+            {
+                throw new RateNotFoundException(sourceCurrency, destinationCurrency);
+            }
+
+            return GetConversionRate(baseToDestinationRate.Rate, baseToSourceRate.Rate);
         }
 
         /// <inheritdoc/>
@@ -47,24 +87,31 @@ namespace CurrencyConverter.Services
         {
             await EnsureRatesUpToDateAsync();
 
-            var baseToSourceRates = ratesDataStore.GetConversionRates(BaseCurrency, sourceCurrency, fromDate, toDate).OrderBy(x => x.Key);
+            // For scenarios where from date falls on a weekend, we want to fetch the rates on the most recent business date before it
+            DateTime searchFromDate = dateProvider.GetCurrentBusinessDayDate(fromDate);
+            
+            var baseToSourceRates = ratesDataStore.GetConversionRates(BaseCurrency, sourceCurrency, searchFromDate, toDate);
             IDictionary<DateTime, decimal?> baseToDestinationRates = ratesDataStore.GetConversionRates(BaseCurrency, destinationCurrency, fromDate, toDate);
 
             Stack<HistoricalRate> result = new Stack<HistoricalRate>();
-            foreach (var sourceRate in baseToSourceRates)
+
+            var currentDate = fromDate;
+            while(currentDate <= toDate)
             {
-                DateTime rateDate = sourceRate.Key;
-                var destinationRate = baseToDestinationRates[rateDate];
-                if (sourceRate.Value.HasValue && destinationRate.HasValue)
+                var currentBusinessDate = dateProvider.GetCurrentBusinessDayDate(currentDate);
+                decimal? baseToSourceRate = baseToSourceRates[currentBusinessDate];
+                decimal? baseToDestinationRate = baseToDestinationRates[currentBusinessDate];
+                if (baseToSourceRate.HasValue && baseToDestinationRate.HasValue)
                 {
                     result.Push(new HistoricalRate
                     {
-                        Date = rateDate,
+                        Date = currentDate,
                         SourceCurrency = sourceCurrency,
                         DestinationCurrency = destinationCurrency,
-                        Rate = GetConversationRate(sourceRate.Value.Value, destinationRate.Value)
+                        Rate = GetConversionRate(baseToSourceRate.Value, baseToDestinationRate.Value)
                     });
                 }
+                currentDate.AddDays(1);
             }
 
             return result;
@@ -86,7 +133,7 @@ namespace CurrencyConverter.Services
 
         }
 
-        private decimal GetConversationRate(decimal baseToSourceRate, decimal baseToDestinationRate)
+        private decimal GetConversionRate(decimal baseToSourceRate, decimal baseToDestinationRate)
         {
             return baseToDestinationRate / baseToSourceRate;
         }

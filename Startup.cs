@@ -9,6 +9,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -29,16 +30,18 @@ namespace CurrencyConverter
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddControllers();
+            services.Configure<EuroFxRefOptions>(Configuration.GetSection("EuroFxRef"));
+            services.Configure<GeneralOptions>(Configuration.GetSection("General"));
             services.AddSingleton<IRatesDataStore, InMemoryDictionaryRatesDataStore>();
             services.AddScoped<IThirdPartyRatesDataSource, EuroFxRefRatesDataSource>();
             services.AddScoped<ICurrencyDataProvider, EuroFxRefRatesProvider>();
             services.AddScoped<IFileOperations, FileOperations>();
-            services.AddScoped<IDateProvider>((serviceProvider) => new DateProvider(DateTime.Today));
+            services.AddScoped<IDateProvider>((serviceProvider) => new DateProvider(DateTime.Now, serviceProvider.GetService<IOptions<GeneralOptions>>()));
             services.AddHttpClient<EuroFxRefRatesDataSource>(c =>
             {
-                c.BaseAddress = new Uri("https://www.ecb.europa.eu");
+                string baseAddress = Configuration.GetValue<string>("EuroFxRef:BaseUrl");
+                c.BaseAddress = new Uri(baseAddress);
             });
-            services.Configure<EuroFxRefOptions>(Configuration.GetSection("EuroFxRef"));
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

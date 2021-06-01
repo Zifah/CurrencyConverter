@@ -15,12 +15,12 @@ namespace CurrencyConverter.Services
         DateTime? LatestRatesDate { get; }
 
         /// <summary>
-        /// Gets the latest exchange rate to convert a value from <paramref name="sourceCurrency"/> to <paramref name="destinationCurrency"/> 
+        /// Gets the exchange rate to convert a value from <paramref name="sourceCurrency"/> to <paramref name="destinationCurrency"/> as at a specific date
         /// </summary>
         /// <param name="sourceCurrency"></param>
         /// <param name="destinationCurrency"></param>
         /// <returns></returns>
-        HistoricalRate GetConversionRate(string sourceCurrency, string destinationCurrency);
+        HistoricalRate GetConversionRate(string sourceCurrency, string destinationCurrency, DateTime date);
 
         /// <summary>
         /// Get all exchange rates for dates between <paramref name="fromDate"/> and <paramref name="toDate"/>
