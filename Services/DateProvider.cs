@@ -43,9 +43,8 @@ namespace CurrencyConverter.Services
             // Simplistic implementation. Will return the last week day
             // TODO: Factor in bank holidays
             DateTime result = date;
-            var weekends = DayOfWeek.Saturday | DayOfWeek.Sunday;
 
-            while ((result.DayOfWeek & weekends) > 0)
+            while (result.DayOfWeek == DayOfWeek.Saturday || result.DayOfWeek == DayOfWeek.Sunday)
             {
                 result = result.AddDays(-1);
             }

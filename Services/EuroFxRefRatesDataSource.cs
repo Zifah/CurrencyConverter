@@ -73,31 +73,26 @@ namespace CurrencyConverter.Services
 
             // Parse it into a list
             using var csvFileStream = new StreamReader(ratesFilePath);
-            IDictionary<DateTime, IDictionary<string, string>> ratesByDate = csvHelper.ParseText(csvFileStream);
+            IDictionary<DateTime, IDictionary<string, decimal?>> ratesByDate = csvHelper.ParseText(csvFileStream);
             var result = new ConcurrentBag<HistoricalRate>();
-
             Parallel.ForEach(ratesByDate, kvp =>
             {
-                var ratesDate = kvp.Key;
-                foreach (KeyValuePair<string, string> rateKvp in kvp.Value)
-                {
-                    string destinationCurrency = rateKvp.Key;
-                    string rateString = rateKvp.Value;
-                    if (decimal.TryParse(rateString, out decimal rate))
+                var theDate = kvp.Key;
+                var theRates = kvp.Value;
+                Parallel.ForEach(theRates, currencyRate => {
+                    string destinationCurrency = currencyRate.Key;
+                    decimal? rateValue = currencyRate.Value;
+                    if (rateValue.HasValue)
                     {
                         result.Add(new HistoricalRate
                         {
-                            Date = ratesDate,
+                            Date = theDate,
                             SourceCurrency = BaseCurrency,
-                            DestinationCurrency = rateKvp.Key,
-                            Rate = rate
+                            DestinationCurrency = destinationCurrency,
+                            Rate = rateValue.Value
                         });
                     }
-                    else
-                    {
-                        logger.LogInformation($"{BaseCurrency} to {destinationCurrency} rates for {ratesDate} is not valid. Value {rateString} is not a valid decimal");
-                    }
-                }
+                });
             });
 
             return result;

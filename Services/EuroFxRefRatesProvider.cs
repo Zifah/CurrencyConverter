@@ -23,7 +23,7 @@ namespace CurrencyConverter.Services
         private static SemaphoreLocker semaphoreLocker = new SemaphoreLocker();
 
         public EuroFxRefRatesProvider(
-            IRatesDataStore ratesDataStore, 
+            IRatesDataStore ratesDataStore,
             IThirdPartyRatesDataSource ratesDataSource,
             IDateProvider dateProvider)
         {
@@ -79,7 +79,7 @@ namespace CurrencyConverter.Services
                 throw new RateNotFoundException(sourceCurrency, destinationCurrency);
             }
 
-            return GetConversionRate(baseToDestinationRate.Rate, baseToSourceRate.Rate);
+            return GetConversionRate(baseToSourceRate.Rate, baseToDestinationRate.Rate);
         }
 
         /// <inheritdoc/>
@@ -89,14 +89,14 @@ namespace CurrencyConverter.Services
 
             // For scenarios where from date falls on a weekend, we want to fetch the rates on the most recent business date before it
             DateTime searchFromDate = dateProvider.GetCurrentBusinessDayDate(fromDate);
-            
+
             var baseToSourceRates = ratesDataStore.GetConversionRates(BaseCurrency, sourceCurrency, searchFromDate, toDate);
             IDictionary<DateTime, decimal?> baseToDestinationRates = ratesDataStore.GetConversionRates(BaseCurrency, destinationCurrency, fromDate, toDate);
 
             Stack<HistoricalRate> result = new Stack<HistoricalRate>();
 
             var currentDate = fromDate;
-            while(currentDate <= toDate)
+            while (currentDate <= toDate)
             {
                 var currentBusinessDate = dateProvider.GetCurrentBusinessDayDate(currentDate);
                 decimal? baseToSourceRate = baseToSourceRates[currentBusinessDate];
@@ -129,8 +129,11 @@ namespace CurrencyConverter.Services
 
         private async Task EnsureRatesUpToDateAsync()
         {
+            if (ratesDataStore.LatestRatesDate >= currentBusinessDay)
+            {
+                return;
+            }
             await RefreshConversionRatesAsync();
-
         }
 
         private decimal GetConversionRate(decimal baseToSourceRate, decimal baseToDestinationRate)
