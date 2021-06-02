@@ -11,7 +11,7 @@ namespace CurrencyConverter.Services
     /// <inheritdoc/>
     public class InMemoryDictionaryRatesDataStore : IRatesDataStore
     {
-        public static readonly IDictionary<DateTime, IDictionary<string, decimal>> ratesByDay = new ConcurrentDictionary<DateTime, IDictionary<string, decimal>>();
+        private static readonly IDictionary<DateTime, IDictionary<string, decimal>> ratesByDayCache = new ConcurrentDictionary<DateTime, IDictionary<string, decimal>>();
 
         /// <summary>
         /// Will be set each time data is saved to the data store
@@ -32,10 +32,9 @@ namespace CurrencyConverter.Services
         /// <returns></returns>
         public HistoricalRate GetConversionRate(string sourceCurrency, string destinationCurrency, DateTime date)
         {
-            var latestRates = ratesByDay[date];
+            var latestRates = ratesByDayCache[date];
 
-            decimal rate;
-            var isForwardRateFound = latestRates.TryGetValue(GetExchangeRateKey(sourceCurrency, destinationCurrency), out rate);
+            var isForwardRateFound = latestRates.TryGetValue(GetExchangeRateKey(sourceCurrency, destinationCurrency), out decimal rate);
             if (!isForwardRateFound)
             {
                 if (latestRates.TryGetValue(GetExchangeRateKey(sourceCurrency, destinationCurrency, inverse: true), out rate))
@@ -72,23 +71,21 @@ namespace CurrencyConverter.Services
         }
 
         /// <summary>
-        /// Save rates to the data store
-        /// Update the value of <see cref="LatestRatesDate"/>
+        /// <para>Save rates to the data store, then update the value of <see cref="LatestRatesDate"/></para>
         /// </summary>
-        /// <param name="latestRates"></param>
-        public void SaveRates(IEnumerable<HistoricalRate> latestRates)
+        /// <param name="ratesByDate"></param>
+        public void SaveRates(IDictionary<DateTime, IEnumerable<HistoricalRate>> ratesByDate)
         {
-            foreach (var rate in latestRates)
+            Parallel.ForEach(ratesByDate, dateRate =>
             {
-                if (!ratesByDay.ContainsKey(rate.Date))
-                {
-                    ratesByDay[rate.Date] = new ConcurrentDictionary<string, decimal>();
-                }
+                DateTime theDate = dateRate.Key;
+                IEnumerable<HistoricalRate> theRates = dateRate.Value;
+                ratesByDayCache[theDate] = theRates.ToDictionary(
+                    rate => GetExchangeRateKey(rate.SourceCurrency, rate.DestinationCurrency),
+                    rate => rate.Rate);
+            });
 
-                ratesByDay[rate.Date][GetExchangeRateKey(rate.SourceCurrency, rate.DestinationCurrency)] = rate.Rate;
-            }
-
-            LatestRatesDate = ratesByDay.Max(x => x.Key);
+            LatestRatesDate = ratesByDayCache.Max(x => x.Key);
         }
 
         private string GetExchangeRateKey(string sourceCurrency, string destinationCurrency, bool inverse = false)

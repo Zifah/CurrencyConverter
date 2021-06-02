@@ -46,18 +46,18 @@ namespace CurrencyConverter.Services
         }
 
         // https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.zip?104acdea95c84c086c74747ee81aa7e4
-        public async Task<IEnumerable<HistoricalRate>> GetAllRatesAsync()
+        public async Task<IDictionary<DateTime, IEnumerable<HistoricalRate>>> GetAllRatesAsync()
         {
             return await GetRatesAsync(true);
         }
 
         // https://www.ecb.europa.eu/stats/eurofxref/eurofxref.zip?104acdea95c84c086c74747ee81aa7e4
-        public async Task<IEnumerable<HistoricalRate>> GetCurrentRatesAsync()
+        public async Task<IDictionary<DateTime, IEnumerable<HistoricalRate>>> GetCurrentRatesAsync()
         {
             return await GetRatesAsync(false);
         }
 
-        private async Task<IEnumerable<HistoricalRate>> GetRatesAsync(bool getHistorical)
+        private async Task<IDictionary<DateTime, IEnumerable<HistoricalRate>>> GetRatesAsync(bool getHistorical)
         {
             string ratesFileUri = getHistorical ? config.HistoricalRatesCsvUri : config.LatestRatesCsvUri;
             // Get the zipped file as a stream
@@ -74,44 +74,53 @@ namespace CurrencyConverter.Services
             // Parse it into a list
             using var csvFileStream = new StreamReader(ratesFilePath);
             IDictionary<DateTime, IDictionary<string, decimal?>> ratesByDate = csvHelper.ParseText(csvFileStream);
-            var result = new ConcurrentBag<HistoricalRate>();
+            var result = new ConcurrentDictionary<DateTime, IEnumerable<HistoricalRate>>();
             Parallel.ForEach(ratesByDate, kvp =>
             {
                 var theDate = kvp.Key;
                 var theRates = kvp.Value;
-                Parallel.ForEach(theRates, currencyRate => {
+
+                var dateRates = new ConcurrentBag<HistoricalRate>();
+                Parallel.ForEach(theRates, currencyRate =>
+                {
                     string destinationCurrency = currencyRate.Key;
                     decimal? rateValue = currencyRate.Value;
                     if (rateValue.HasValue)
                     {
-                        result.Add(new HistoricalRate
+                        dateRates.Add(new HistoricalRate
                         {
-                            Date = theDate,
                             SourceCurrency = BaseCurrency,
                             DestinationCurrency = destinationCurrency,
                             Rate = rateValue.Value
                         });
                     }
                 });
+
+                result[theDate] = dateRates;
             });
 
             return result;
         }
 
         /// <inheritdoc/>
-        public async Task<IEnumerable<HistoricalRate>> GetRatesAfterAsync(DateTime? exclusiveMinimumBoundDate)
+        public async Task<IDictionary<DateTime, IEnumerable<HistoricalRate>>> GetRatesAfterAsync(DateTime? exclusiveMinimumBoundDate)
         {
             DateTime lastBusinessDay = dateProvider.GetLastBusinessDayDate();
 
             Boolean doWeHaveSecondToCurrentData = exclusiveMinimumBoundDate == lastBusinessDay;
 
-            if(doWeHaveSecondToCurrentData)
+            if (doWeHaveSecondToCurrentData)
             {
                 return await GetCurrentRatesAsync();
             }
 
             var allRates = await GetAllRatesAsync();
-            return exclusiveMinimumBoundDate.HasValue ? allRates.Where(r => r.Date > exclusiveMinimumBoundDate) : allRates;
+
+            return exclusiveMinimumBoundDate.HasValue ?
+                allRates
+                .Where(r => r.Key > exclusiveMinimumBoundDate)
+                .ToDictionary(kvp => kvp.Key, kvp => kvp.Value) :
+                allRates;
         }
 
         private async Task<Stream> GetRatesZipFileAsync(string path)

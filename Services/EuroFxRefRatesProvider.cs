@@ -122,7 +122,7 @@ namespace CurrencyConverter.Services
         {
             await semaphoreLocker.LockAsync(async () =>
             {
-                IEnumerable<HistoricalRate> latestRates = await ratesDataSource.GetRatesAfterAsync(ratesDataStore.LatestRatesDate);
+                IDictionary<DateTime, IEnumerable<HistoricalRate>> latestRates = await ratesDataSource.GetRatesAfterAsync(ratesDataStore.LatestRatesDate);
                 ratesDataStore.SaveRates(latestRates);
             });
         }
