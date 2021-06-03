@@ -65,7 +65,7 @@ namespace CurrencyConverter.Services
         /// <inheritdoc/>
         public async Task<decimal> GetConversionRate(string sourceCurrency, string destinationCurrency)
         {
-            await EnsureRatesUpToDateAsync();
+            await RefreshConversionRatesAsync();
             HistoricalRate baseToSourceRate = ratesDataStore.GetConversionRate(BaseCurrency, sourceCurrency, currentBusinessDay);
 
             if (baseToSourceRate == null)
@@ -85,7 +85,7 @@ namespace CurrencyConverter.Services
         /// <inheritdoc/>
         public async Task<IEnumerable<HistoricalRate>> GetHistoricalConversionRates(DateTime fromDate, DateTime toDate, string sourceCurrency, string destinationCurrency)
         {
-            await EnsureRatesUpToDateAsync();
+            await RefreshConversionRatesAsync();
 
             // For scenarios where from date falls on a weekend, we want to fetch the rates on the most recent business date before it
             DateTime searchFromDate = dateProvider.GetCurrentBusinessDayDate(fromDate);
@@ -122,18 +122,14 @@ namespace CurrencyConverter.Services
         {
             await semaphoreLocker.LockAsync(async () =>
             {
+                if (ratesDataStore.LatestRatesDate >= currentBusinessDay)
+                {
+                    return;
+                }
+
                 IDictionary<DateTime, IEnumerable<HistoricalRate>> latestRates = await ratesDataSource.GetRatesAfterAsync(ratesDataStore.LatestRatesDate);
                 ratesDataStore.SaveRates(latestRates);
             });
-        }
-
-        private async Task EnsureRatesUpToDateAsync()
-        {
-            if (ratesDataStore.LatestRatesDate >= currentBusinessDay)
-            {
-                return;
-            }
-            await RefreshConversionRatesAsync();
         }
 
         private decimal GetConversionRate(decimal baseToSourceRate, decimal baseToDestinationRate)

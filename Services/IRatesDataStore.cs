@@ -31,7 +31,7 @@ namespace CurrencyConverter.Services
         IDictionary<DateTime, decimal?> GetConversionRates(string sourceCurrency, string destinationCurrency, DateTime fromDate, DateTime toDate);
 
         /// <summary>
-        /// Save exchange rates
+        /// <para>Save rates to the data store, then update the value of <see cref="LatestRatesDate"/></para>
         /// </summary>
         /// <param name="ratesByDate"></param>
         void SaveRates(IDictionary<DateTime, IEnumerable<HistoricalRate>> ratesByDate);

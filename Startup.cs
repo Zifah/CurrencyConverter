@@ -41,7 +41,7 @@ namespace CurrencyConverter
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env, ICurrencyDataProvider currencyDataProvider)
         {
             if (env.IsDevelopment())
             {
@@ -58,6 +58,9 @@ namespace CurrencyConverter
             {
                 endpoints.MapControllers();
             });
+
+            // Refresh conversion rates on startup
+            currencyDataProvider.RefreshConversionRatesAsync();
         }
     }
 }

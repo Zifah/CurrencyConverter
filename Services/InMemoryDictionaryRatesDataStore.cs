@@ -70,10 +70,7 @@ namespace CurrencyConverter.Services
             return result;
         }
 
-        /// <summary>
-        /// <para>Save rates to the data store, then update the value of <see cref="LatestRatesDate"/></para>
-        /// </summary>
-        /// <param name="ratesByDate"></param>
+        /// <inheritdoc/>
         public void SaveRates(IDictionary<DateTime, IEnumerable<HistoricalRate>> ratesByDate)
         {
             Parallel.ForEach(ratesByDate, dateRate =>

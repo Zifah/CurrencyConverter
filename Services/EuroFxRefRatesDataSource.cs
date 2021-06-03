@@ -107,7 +107,7 @@ namespace CurrencyConverter.Services
         {
             DateTime lastBusinessDay = dateProvider.GetLastBusinessDayDate();
 
-            Boolean doWeHaveSecondToCurrentData = exclusiveMinimumBoundDate == lastBusinessDay;
+            bool doWeHaveSecondToCurrentData = exclusiveMinimumBoundDate == lastBusinessDay;
 
             if (doWeHaveSecondToCurrentData)
             {
