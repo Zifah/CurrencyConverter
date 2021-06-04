@@ -14,12 +14,6 @@ namespace CurrencyConverter.Api.Services
         string BaseCurrency { get; }
 
         /// <summary>
-        /// Polls the primary source of currency information and brings local conversion rates store up-to-date
-        /// </summary>
-        /// <returns></returns>
-        Task RefreshConversionRatesAsync();
-
-        /// <summary>
         /// Convert a value from one currency to another
         /// </summary>
         /// <param name="amount">The value (in source currency) to be converted</param>

@@ -1,5 +1,6 @@
 using CurrencyConverter.Api.Configuration;
 using CurrencyConverter.Api.Helpers;
+using CurrencyConverter.Api.Scheduling;
 using CurrencyConverter.Api.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -32,16 +33,19 @@ namespace CurrencyConverter
                 c.BaseAddress = new Uri(baseAddress);
             });
 
-            services.AddSingleton<IRatesDataStore, InMemoryDictionaryRatesDataStore>();
-            services.AddScoped<EuroFxCsvHelper>();
-            services.AddScoped<IThirdPartyRatesDataSource, EuroFxRefRatesDataSource>();
             services.AddScoped<ICurrencyDataProvider, EuroFxRefRatesProvider>();
-            services.AddScoped<IFileOperations, FileOperations>();
-            services.AddScoped<IDateProvider>((serviceProvider) => new DateProvider(DateTime.Now, serviceProvider.GetService<IOptions<GeneralOptions>>()));
+            services.AddTransient<EuroFxCsvHelper>();
+            services.AddTransient<IFileOperations, FileOperations>();
+            services.AddTransient<IThirdPartyRatesDataSource, EuroFxRefRatesDataSource>();
+            services.AddTransient<IDateProvider>((serviceProvider) => new DateProvider(DateTime.Now, serviceProvider.GetService<IOptions<GeneralOptions>>()));
+            services.AddTransient<RatesDataRefresher>();
+            services.AddSingleton<IRatesDataStore, InMemoryDictionaryRatesDataStore>();
+
+            services.AddHostedService<RefreshCurrencyRatesJob>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env, ICurrencyDataProvider currencyDataProvider)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env, RatesDataRefresher ratesDataRefresher)
         {
             if (env.IsDevelopment())
             {
@@ -60,7 +64,7 @@ namespace CurrencyConverter
             });
 
             // Refresh conversion rates on startup
-            currencyDataProvider.RefreshConversionRatesAsync();
+            ratesDataRefresher.RefreshConversionRatesAsync().Wait();
         }
     }
 }

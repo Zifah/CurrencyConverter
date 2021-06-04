@@ -20,17 +20,20 @@ namespace CurrencyConverter.Api.Services
         private readonly IThirdPartyRatesDataSource ratesDataSource;
         private readonly IDateProvider dateProvider;
         private readonly DateTime currentBusinessDay;
-        private static SemaphoreLocker semaphoreLocker = new SemaphoreLocker();
+        private readonly RatesDataRefresher ratesDataRefresher;
 
         public EuroFxRefRatesProvider(
             IRatesDataStore ratesDataStore,
             IThirdPartyRatesDataSource ratesDataSource,
-            IDateProvider dateProvider)
+            IDateProvider dateProvider,
+            RatesDataRefresher ratesDataRefresher)
         {
             this.ratesDataStore = Requires.NotNull(ratesDataStore, nameof(ratesDataStore));
             this.ratesDataSource = Requires.NotNull(ratesDataSource, nameof(ratesDataSource));
             this.dateProvider = dateProvider;
+            this.ratesDataRefresher = ratesDataRefresher;
             this.currentBusinessDay = dateProvider.GetCurrentBusinessDayDate();
+
             BaseCurrency = Requires.NotNull(ratesDataSource.BaseCurrency, nameof(ratesDataSource.BaseCurrency));
         }
 
@@ -65,7 +68,7 @@ namespace CurrencyConverter.Api.Services
         /// <inheritdoc/>
         public async Task<decimal> GetConversionRate(string sourceCurrency, string destinationCurrency)
         {
-            await RefreshConversionRatesAsync();
+            await ratesDataRefresher.RefreshConversionRatesAsync();
             HistoricalRate baseToSourceRate = ratesDataStore.GetConversionRate(BaseCurrency, sourceCurrency, currentBusinessDay);
 
             if (baseToSourceRate == null)
@@ -85,7 +88,7 @@ namespace CurrencyConverter.Api.Services
         /// <inheritdoc/>
         public async Task<IEnumerable<HistoricalRate>> GetHistoricalConversionRates(DateTime fromDate, DateTime toDate, string sourceCurrency, string destinationCurrency)
         {
-            await RefreshConversionRatesAsync();
+            await ratesDataRefresher.RefreshConversionRatesAsync();
 
             // For scenarios where from date falls on a weekend, we want to fetch the rates on the most recent business date before it
             DateTime searchFromDate = dateProvider.GetCurrentBusinessDayDate(fromDate);
@@ -115,21 +118,6 @@ namespace CurrencyConverter.Api.Services
             }
 
             return result;
-        }
-
-        /// <inheritdoc/>
-        public async Task RefreshConversionRatesAsync()
-        {
-            await semaphoreLocker.LockAsync(async () =>
-            {
-                if (ratesDataStore.LatestRatesDate >= currentBusinessDay)
-                {
-                    return;
-                }
-
-                IDictionary<DateTime, IEnumerable<HistoricalRate>> latestRates = await ratesDataSource.GetRatesAfterAsync(ratesDataStore.LatestRatesDate);
-                ratesDataStore.SaveRates(latestRates);
-            });
         }
 
         private decimal GetConversionRate(decimal baseToSourceRate, decimal baseToDestinationRate)
