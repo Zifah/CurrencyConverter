@@ -29,8 +29,9 @@ namespace CurrencyConverter.Api.Services
         /// </summary>
         /// <param name="sourceCurrency">The currency of the known value</param>
         /// <param name="destinationCurrency">The currency of the value to calculate using the returned rate</param>
-        /// <returns>Rate: To convert a value in <paramref name="sourceCurrency"/> to <paramref name="destinationCurrency"/>, multiply it by this values</returns>
-        Task<decimal> GetConversionRate(string sourceCurrency, string destinationCurrency);
+        /// <param name="date">The date as at which a rate is to be fetched</param>
+        /// <returns>Rate: To convert a value in <paramref name="sourceCurrency"/> to <paramref name="destinationCurrency"/>, multiply it by this value</returns>
+        Task<HistoricalRate> GetConversionRate(string sourceCurrency, string destinationCurrency, DateTime? date);
 
         /// <summary>
         /// Returns a conversation rate from over a range of dates up from a past date up to the present date

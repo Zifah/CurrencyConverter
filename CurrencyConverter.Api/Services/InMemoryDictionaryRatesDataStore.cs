@@ -32,7 +32,10 @@ namespace CurrencyConverter.Api.Services
         /// <returns></returns>
         public HistoricalRate GetConversionRate(string sourceCurrency, string destinationCurrency, DateTime date)
         {
-            var latestRates = ratesByDayCache[date];
+            if (!ratesByDayCache.TryGetValue(date, out IDictionary<string, decimal> latestRates)) 
+            {
+                return null;
+            }
 
             var isForwardRateFound = latestRates.TryGetValue(GetExchangeRateKey(sourceCurrency, destinationCurrency), out decimal rate);
             if (!isForwardRateFound)

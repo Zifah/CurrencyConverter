@@ -19,6 +19,7 @@ namespace CurrencyConverter.Api.Controllers
             this.exchangeRatesProvider = Requires.NotNull(exchangeRatesProvider, nameof(exchangeRatesProvider));
         }
 
+        [HttpPost]
         public async Task<ActionResult> Post(CurrencyConversionRequestDto requestData)
         {
             var convertResult = await exchangeRatesProvider.Convert(requestData.Amount, requestData.SourceCurrency, requestData.DestinationCurrency, requestData.Date);

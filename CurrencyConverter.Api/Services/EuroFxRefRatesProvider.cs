@@ -17,7 +17,6 @@ namespace CurrencyConverter.Api.Services
     {
         public string BaseCurrency { get; }
         private readonly IRatesDataStore ratesDataStore;
-        private readonly IThirdPartyRatesDataSource ratesDataSource;
         private readonly IDateProvider dateProvider;
         private readonly DateTime currentBusinessDay;
         private readonly RatesDataRefresher ratesDataRefresher;
@@ -29,7 +28,6 @@ namespace CurrencyConverter.Api.Services
             RatesDataRefresher ratesDataRefresher)
         {
             this.ratesDataStore = Requires.NotNull(ratesDataStore, nameof(ratesDataStore));
-            this.ratesDataSource = Requires.NotNull(ratesDataSource, nameof(ratesDataSource));
             this.dateProvider = dateProvider;
             this.ratesDataRefresher = ratesDataRefresher;
             this.currentBusinessDay = dateProvider.GetCurrentBusinessDayDate();
@@ -40,22 +38,7 @@ namespace CurrencyConverter.Api.Services
         /// <inheritdoc/>
         public async Task<ConvertResult> Convert(decimal amount, string sourceCurrency, string destinationCurrency, DateTime? date)
         {
-            decimal rate;
-            if (date.HasValue)
-            {
-                HistoricalRate rateObj = (await GetHistoricalConversionRates(date.Value, date.Value, sourceCurrency, destinationCurrency)).SingleOrDefault();
-
-                if (rateObj == null)
-                {
-                    throw new RateNotFoundException(sourceCurrency, destinationCurrency);
-                }
-
-                rate = rateObj.Rate;
-            }
-            else
-            {
-                rate = await GetConversionRate(sourceCurrency, destinationCurrency);
-            }
+            decimal rate = (await GetConversionRate(sourceCurrency, destinationCurrency, date)).Rate;
 
             return new ConvertResult
             {
@@ -66,23 +49,44 @@ namespace CurrencyConverter.Api.Services
         }
 
         /// <inheritdoc/>
-        public async Task<decimal> GetConversionRate(string sourceCurrency, string destinationCurrency)
+        public async Task<HistoricalRate> GetConversionRate(string sourceCurrency, string destinationCurrency, DateTime? date = null)
         {
             await ratesDataRefresher.RefreshConversionRatesAsync();
-            HistoricalRate baseToSourceRate = ratesDataStore.GetConversionRate(BaseCurrency, sourceCurrency, currentBusinessDay);
 
-            if (baseToSourceRate == null)
+            if (date.HasValue)
             {
-                throw new RateNotFoundException(sourceCurrency, destinationCurrency);
-            }
+                HistoricalRate rateObj = (await GetHistoricalConversionRates(date.Value, date.Value, sourceCurrency, destinationCurrency)).SingleOrDefault();
 
-            HistoricalRate baseToDestinationRate = ratesDataStore.GetConversionRate(BaseCurrency, destinationCurrency, currentBusinessDay);
-            if (baseToDestinationRate == null)
+                if (rateObj == null)
+                {
+                    throw new RateNotFoundException(sourceCurrency, destinationCurrency, date.Value);
+                }
+
+                return rateObj;
+            }
+            else
             {
-                throw new RateNotFoundException(sourceCurrency, destinationCurrency);
-            }
+                HistoricalRate baseToSourceRate = ratesDataStore.GetConversionRate(BaseCurrency, sourceCurrency, currentBusinessDay);
 
-            return GetConversionRate(baseToSourceRate.Rate, baseToDestinationRate.Rate);
+                if (baseToSourceRate == null)
+                {
+                    throw new RateNotFoundException(sourceCurrency, destinationCurrency, currentBusinessDay);
+                }
+
+                HistoricalRate baseToDestinationRate = ratesDataStore.GetConversionRate(BaseCurrency, destinationCurrency, currentBusinessDay);
+                if (baseToDestinationRate == null)
+                {
+                    throw new RateNotFoundException(sourceCurrency, destinationCurrency, currentBusinessDay);
+                }
+
+                return new HistoricalRate
+                {
+                    Rate = GetConversionRate(baseToSourceRate.Rate, baseToDestinationRate.Rate),
+                    SourceCurrency = sourceCurrency,
+                    DestinationCurrency = destinationCurrency,
+                    Date = currentBusinessDay
+                };
+            }
         }
 
         /// <inheritdoc/>
@@ -94,7 +98,7 @@ namespace CurrencyConverter.Api.Services
             DateTime searchFromDate = dateProvider.GetCurrentBusinessDayDate(fromDate);
 
             var baseToSourceRates = ratesDataStore.GetConversionRates(BaseCurrency, sourceCurrency, searchFromDate, toDate);
-            IDictionary<DateTime, decimal?> baseToDestinationRates = ratesDataStore.GetConversionRates(BaseCurrency, destinationCurrency, fromDate, toDate);
+            IDictionary<DateTime, decimal?> baseToDestinationRates = ratesDataStore.GetConversionRates(BaseCurrency, destinationCurrency, searchFromDate, toDate);
 
             Stack<HistoricalRate> result = new Stack<HistoricalRate>();
 
@@ -114,7 +118,7 @@ namespace CurrencyConverter.Api.Services
                         Rate = GetConversionRate(baseToSourceRate.Value, baseToDestinationRate.Value)
                     });
                 }
-                currentDate.AddDays(1);
+                currentDate = currentDate.AddDays(1);
             }
 
             return result;
