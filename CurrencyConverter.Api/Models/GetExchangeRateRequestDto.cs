@@ -9,9 +9,13 @@ namespace CurrencyConverter.Api.Models
     public class GetExchangeRateRequestDto
     {
         [Required]
+        [StringLength(3)]
         public string SourceCurrency { get; set; }
+
         [Required]
+        [StringLength(3)]
         public string DestinationCurrency { get; set; }
+
         public DateTime? Date { get; set; }
     }
 }
