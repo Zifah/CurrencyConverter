@@ -55,6 +55,7 @@ namespace CurrencyConverter.Api.Services
 
             if (date.HasValue)
             {
+                date = date.Value.Date;
                 HistoricalRate rateObj = (await GetHistoricalConversionRates(date.Value, date.Value, sourceCurrency, destinationCurrency)).SingleOrDefault();
 
                 if (rateObj == null)
@@ -95,6 +96,8 @@ namespace CurrencyConverter.Api.Services
             await ratesDataRefresher.RefreshConversionRatesAsync();
 
             // For scenarios where from date falls on a weekend, we want to fetch the rates on the most recent business date before it
+            fromDate = fromDate.Date;
+            toDate = toDate.Date;
             DateTime searchFromDate = dateProvider.GetCurrentBusinessDayDate(fromDate);
 
             var baseToSourceRates = ratesDataStore.GetConversionRates(BaseCurrency, sourceCurrency, searchFromDate, toDate);

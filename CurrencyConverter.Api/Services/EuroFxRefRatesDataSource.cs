@@ -75,6 +75,13 @@ namespace CurrencyConverter.Api.Services
             using var csvFileStream = new StreamReader(ratesFilePath);
             IDictionary<DateTime, IDictionary<string, decimal?>> ratesByDate = csvHelper.ParseText(csvFileStream);
             var result = new ConcurrentDictionary<DateTime, IEnumerable<HistoricalRate>>();
+            var baseToBaseRate = new HistoricalRate
+            {
+                Rate = 1,
+                SourceCurrency = BaseCurrency,
+                DestinationCurrency = BaseCurrency
+            };
+
             Parallel.ForEach(ratesByDate, kvp =>
             {
                 var theDate = kvp.Key;
@@ -95,6 +102,9 @@ namespace CurrencyConverter.Api.Services
                         });
                     }
                 });
+
+                // Add the Base currency to Base currency rate which is always 1
+                dateRates.Add(baseToBaseRate);
 
                 result[theDate] = dateRates;
             });

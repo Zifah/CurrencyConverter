@@ -21,7 +21,8 @@ namespace CurrencyConverter.Api.Exceptions
         {
         }
 
-        public RateNotFoundException(string sourceCurrency, string destinationCurrency, DateTime date) : this($"Could not find an exchange rate from {sourceCurrency} to {destinationCurrency} on {date}")
+        public RateNotFoundException(string sourceCurrency, string destinationCurrency, DateTime date) :
+            this($"Could not find an exchange rate from {sourceCurrency} to {destinationCurrency} on {date}")
         {
         }
     }
